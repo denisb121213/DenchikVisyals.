@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.denchik.visuals.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "EnvironmentAttributeInterpolatorMixin",
+    "MinecraftClientMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

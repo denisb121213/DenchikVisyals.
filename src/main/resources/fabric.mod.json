@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "denchikvisuals",
+  "version": "${version}",
+  "name": "DenchikVisuals",
+  "description": "Visuals for Minecraft: sky color, hats, particles. Press Right Shift to open the menu.",
+  "authors": ["Denchik"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.denchik.visuals.DenchikVisuals"]
+  },
+  "mixins": ["denchikvisuals.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  }
+}
