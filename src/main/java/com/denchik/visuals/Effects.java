@@ -1,8 +1,17 @@
 package com.denchik.visuals;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.text.Text;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
@@ -11,6 +20,8 @@ import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Горячие клавиши, шляпы, частицы, зум, подсчёт CPS. Вызывается каждый тик игры. */
@@ -23,12 +34,31 @@ public final class Effects {
     private static int originalFov = 70;
     private static int ticks = 0;
 
+    private static boolean prevV = false;
+    private static boolean nvApplied = false;
+    private static int quickSync = 0;
+    private static final ArrayDeque<Integer> quickQueue = new ArrayDeque<>();
+    private static double lastX = 0;
+    private static double lastZ = 0;
+    private static double speedBps = 0;
+    private static int combo = 0;
+    private static long comboLast = 0L;
+    private static int prevHurt = 0;
+
     public static boolean leftDown = false;
     public static boolean rightDown = false;
     private static final ArrayDeque<Long> leftClicks = new ArrayDeque<>();
     private static final ArrayDeque<Long> rightClicks = new ArrayDeque<>();
 
     private Effects() {}
+
+    public static double speed() {
+        return speedBps;
+    }
+
+    public static int combo() {
+        return combo;
+    }
 
     public static int cpsLeft() {
         return count(leftClicks);
@@ -56,6 +86,11 @@ public final class Effects {
         if (p == null || client.world == null || client.isPaused()) return;
 
         ticks++;
+
+        trackSpeed(p);
+        trackCombo(p);
+        handleNightVision(p);
+        handleQuickStack(client, handle);
 
         boolean firstPerson = client.options.getPerspective().isFirstPerson();
         if (Config.hat != Config.Hat.NONE && !firstPerson) {
@@ -103,8 +138,12 @@ public final class Effects {
     }
 
     private static void onAttackClick(MinecraftClient client) {
-        if (!Config.hitEffect) return;
         Entity t = client.targetedEntity;
+        if (t instanceof LivingEntity && t != client.player) {
+            combo++;
+            comboLast = System.currentTimeMillis();
+        }
+        if (!Config.hitEffect) return;
         if (t == null || t == client.player) return;
         ThreadLocalRandom r = ThreadLocalRandom.current();
         double cx = t.getX();
@@ -114,6 +153,70 @@ public final class Effects {
             ParticleEffect e = (i % 2 == 0) ? ParticleTypes.CRIT : ParticleTypes.ENCHANTED_HIT;
             add(client, e, cx + spread(r, 0.3), cy + spread(r, 0.3), cz + spread(r, 0.3),
                     spread(r, 0.3), 0.15 + r.nextDouble() * 0.2, spread(r, 0.3));
+        }
+    }
+
+    // ---------- Скорость, комбо, ночное зрение ----------
+
+    private static void trackSpeed(ClientPlayerEntity p) {
+        double dx = p.getX() - lastX;
+        double dz = p.getZ() - lastZ;
+        speedBps = Math.sqrt(dx * dx + dz * dz) * 20.0;
+        lastX = p.getX();
+        lastZ = p.getZ();
+    }
+
+    private static void trackCombo(ClientPlayerEntity p) {
+        if (p.hurtTime > 0 && prevHurt == 0) combo = 0;
+        prevHurt = p.hurtTime;
+        if (combo > 0 && System.currentTimeMillis() - comboLast > 3000L) combo = 0;
+    }
+
+    private static void handleNightVision(ClientPlayerEntity p) {
+        if (Config.nightVision) {
+            if (!p.hasStatusEffect(StatusEffects.NIGHT_VISION)) {
+                p.addStatusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, -1, 0, false, false, false));
+                nvApplied = true;
+            }
+        } else if (nvApplied) {
+            p.removeStatusEffect(StatusEffects.NIGHT_VISION);
+            nvApplied = false;
+        }
+    }
+
+    // ---------- Быстро сложить в сундук (клавиша V) ----------
+
+    private static void handleQuickStack(MinecraftClient client, long handle) {
+        boolean v = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_V) == GLFW.GLFW_PRESS;
+        boolean edge = v && !prevV;
+        prevV = v;
+
+        ClientPlayerEntity p = client.player;
+        if (!(client.currentScreen instanceof GenericContainerScreen) || p == null
+                || !(p.currentScreenHandler instanceof GenericContainerScreenHandler handler)) {
+            quickQueue.clear();
+            return;
+        }
+
+        if (Config.quickStack && edge) {
+            quickQueue.clear();
+            int chestSize = handler.getRows() * 9;
+            Set<Item> inChest = new HashSet<>();
+            for (int i = 0; i < chestSize; i++) {
+                ItemStack st = handler.getSlot(i).getStack();
+                if (!st.isEmpty()) inChest.add(st.getItem());
+            }
+            for (int i = chestSize; i < chestSize + 27; i++) {
+                ItemStack st = handler.getSlot(i).getStack();
+                if (!st.isEmpty() && inChest.contains(st.getItem())) quickQueue.addLast(i);
+            }
+            quickSync = handler.syncId;
+            p.sendMessage(Text.literal("Складываю стаков: " + quickQueue.size()), true);
+        }
+
+        if (!quickQueue.isEmpty() && ticks % 2 == 0 && client.interactionManager != null) {
+            int slot = quickQueue.pollFirst();
+            client.interactionManager.clickSlot(quickSync, slot, 0, SlotActionType.QUICK_MOVE, p);
         }
     }
 

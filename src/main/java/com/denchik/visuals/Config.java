@@ -36,6 +36,12 @@ public final class Config {
         Fx(String label) { this.label = label; }
     }
 
+    public enum Crosshair {
+        OFF("Обычный"), CROSS("Крест"), DOT("Точка"), CIRCLE("Круг");
+        public final String label;
+        Crosshair(String label) { this.label = label; }
+    }
+
     /** Готовые цвета неба (R, G, B). */
     public static final int[][] PRESETS = {
             {140, 70, 255}, {255, 120, 70}, {40, 140, 255}, {80, 255, 120},
@@ -71,12 +77,26 @@ public final class Config {
     public static boolean hudDirection = false;
     public static boolean hudTime = false;
     public static boolean hudCps = true;
+    public static boolean hudSpeed = false;
 
     // ---------- Бой (только визуал и информация) ----------
     public static boolean targetHud = true;
     public static boolean hitEffect = false;
     public static boolean hudKeys = false;
     public static boolean hudArmor = true;
+    public static boolean hudEffects = false;
+    public static boolean hudItems = false;
+    public static boolean hudCombo = false;
+    public static Crosshair crosshair = Crosshair.OFF;
+    public static int crosshairSize = 5;
+    public static float crosshairHue = 1.0f;
+    public static boolean crosshairReact = true;
+
+    // ---------- Игрок ----------
+    public static boolean nightVision = false;
+    public static boolean quickStack = true;
+    public static boolean playerArrows = false;
+    public static int arrowRange = 100;
 
     // ---------- Камера ----------
     public static boolean zoomEnabled = true;
@@ -202,5 +222,8 @@ public final class Config {
         zoomFov = clampI(zoomFov, 30, 60);
         accentHue = clampF(accentHue, 0f, 1f);
         panelAlpha = clampF(panelAlpha, 0.5f, 1f);
+        crosshairSize = clampI(crosshairSize, 2, 12);
+        crosshairHue = clampF(crosshairHue, 0f, 1f);
+        arrowRange = clampI(arrowRange, 20, 300);
     }
 }

@@ -14,7 +14,7 @@ import java.util.Map;
 /** Меню DenchikVisuals (Right Shift). Нарисовано вручную, с анимациями. */
 public class VisualsScreen extends Screen {
 
-    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Камера", "Тема"};
+    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Игрок", "Камера", "Тема"};
     private static final int ROW = 20;
 
     private int tab = 0;
@@ -336,17 +336,48 @@ public class VisualsScreen extends Screen {
         Config.hudDirection = toggle("hd", "Направление", Config.hudDirection);
         Config.hudTime = toggle("ht", "Время", Config.hudTime);
         Config.hudCps = toggle("hcps", "CPS (клики в секунду)", Config.hudCps);
+        Config.hudSpeed = toggle("hsp", "Скорость (блоков в секунду)", Config.hudSpeed);
     }
 
     private void buildCombat() {
-        section("БОЙ (ВИЗУАЛ)");
-        Config.targetHud = toggle("th", "Информация о цели (здоровье)", Config.targetHud);
+        section("БОЙ (ИНФОРМАЦИЯ)");
+        Config.targetHud = toggle("th", "Здоровье и дистанция до цели", Config.targetHud);
         Config.hitEffect = toggle("he", "Частицы при ударе", Config.hitEffect);
         Config.hudKeys = toggle("hk", "Клавиши (WASD, мышь)", Config.hudKeys);
         Config.hudArmor = toggle("ha", "Прочность брони", Config.hudArmor);
+        Config.hudEffects = toggle("hef", "Эффекты и таймеры", Config.hudEffects);
+        Config.hudItems = toggle("hit", "Тотемы, яблоки, жемчуг, стрелы", Config.hudItems);
+        Config.hudCombo = toggle("hcb", "Комбо (удары подряд)", Config.hudCombo);
+
+        section("ПРИЦЕЛ");
+        Config.Crosshair[] cs = Config.Crosshair.values();
+        String[] labels = new String[cs.length];
+        for (int i = 0; i < cs.length; i++) labels[i] = cs[i].label;
+        int idx = chips("cross", labels, Config.crosshair.ordinal());
+        Config.crosshair = cs[idx];
+        Config.crosshairSize = Math.round(slider("cs", "Размер прицела", Config.crosshairSize, 2, 12, 0));
+        Config.crosshairHue = slider("ch", "Цвет (в самом конце - белый)", Config.crosshairHue, 0f, 1f, 2);
+        Config.crosshairReact = toggle("cr", "Краснеет, когда смотришь на цель", Config.crosshairReact);
         rowY += 4;
-        note("Только визуал и информация.");
+        note("Только информация и внешний вид.");
         note("Ничего, что играет за тебя.");
+    }
+
+    private void buildPlayer() {
+        section("ВИДИМОСТЬ");
+        Config.nightVision = toggle("nv", "Ночное зрение", Config.nightVision);
+        note("Видишь в темноте только ты.");
+
+        section("ИНВЕНТАРЬ");
+        Config.quickStack = toggle("qs", "Быстро сложить в сундук (V)", Config.quickStack);
+        note("Открой сундук и нажми V: предметы,");
+        note("которые там уже есть, переложатся.");
+
+        section("СТРЕЛКИ К ИГРОКАМ");
+        Config.playerArrows = toggle("pa2", "Показывать стрелки", Config.playerArrows);
+        Config.arrowRange = Math.round(slider("ar2", "Дальность (блоков)", Config.arrowRange, 20, 300, 0));
+        note("Одиночная игра и LAN: все игроки.");
+        note("На серверах: только твоя команда.");
     }
 
     private void buildCamera() {
@@ -454,7 +485,8 @@ public class VisualsScreen extends Screen {
             case 2 -> buildFx();
             case 3 -> buildHud();
             case 4 -> buildCombat();
-            case 5 -> buildCamera();
+            case 5 -> buildPlayer();
+            case 6 -> buildCamera();
             default -> buildTheme();
         }
         ctx.disableScissor();
@@ -472,7 +504,7 @@ public class VisualsScreen extends Screen {
 
         // подвал
         text("RShift / Esc - закрыть     C - зум", px + 10, py + ph - 13, 0x7C7C94, fade);
-        String ver = "v1.1.0";
+        String ver = "v1.2.0";
         text(ver, px + pw - 10 - tr.getWidth(ver), py + ph - 13, 0x7C7C94, fade);
 
         // сохранение, когда мышь отпущена
