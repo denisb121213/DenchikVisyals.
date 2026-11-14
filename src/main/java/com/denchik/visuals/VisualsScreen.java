@@ -1,123 +1,53 @@
 package com.denchik.visuals;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
+import org.lwjgl.glfw.GLFW;
 
-import java.util.function.DoubleConsumer;
+import java.util.HashMap;
+import java.util.Map;
 
-/** Меню по Right Shift. */
+/** Меню DenchikVisuals (Right Shift). Нарисовано вручную, с анимациями. */
 public class VisualsScreen extends Screen {
 
-    private static final int COL_W = 150;
-    private static final int GAP = 10;
+    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Камера", "Тема"};
+    private static final int ROW = 20;
 
-    private ButtonWidget skyButton;
-    private int left, right, top;
+    private int tab = 0;
+    private float tabPos = 0f;
+    private float open = 0f;
+    private float scroll = 0f;
+    private float scrollTarget = 0f;
+    private float contentHeight = 0f;
+    private long lastNs = 0L;
+    private boolean prevDown = false;
+    private boolean down = false;
+    private boolean clicked = false;
+    private boolean pendingSave = false;
+    private String dragging = null;
+    private final Map<String, Float> anims = new HashMap<>();
+
+    // значения на время одного кадра
+    private DrawContext ctx;
+    private TextRenderer tr;
+    private int mx;
+    private int my;
+    private float dt;
+    private float fade;
+    private int accent;
+    private int cx1;
+    private int cy1;
+    private int cx2;
+    private int cy2;
+    private float rowY;
+    private boolean inContent;
 
     public VisualsScreen() {
         super(Text.literal("DenchikVisuals"));
-    }
-
-    private static <E extends Enum<E>> E next(E e) {
-        E[] all = e.getDeclaringClass().getEnumConstants();
-        return all[(e.ordinal() + 1) % all.length];
-    }
-
-    private static Text yesNo(String name, boolean v) {
-        return Text.literal(name + ": " + (v ? "Да" : "Нет"));
-    }
-
-    @Override
-    protected void init() {
-        left = this.width / 2 - COL_W - GAP / 2;
-        right = this.width / 2 + GAP / 2;
-        top = Math.max(50, this.height / 2 - 85);
-
-        int y = top;
-
-        // ---------- Левая колонка: небо ----------
-        skyButton = ButtonWidget.builder(Text.empty(), b -> {
-            Config.skyMode = next(Config.skyMode);
-            b.setMessage(Text.literal("Небо: " + Config.skyMode.label));
-            Config.save();
-        }).dimensions(left, y, COL_W, 20).build();
-        skyButton.setMessage(Text.literal("Небо: " + Config.skyMode.label));
-        addDrawableChild(skyButton);
-
-        addDrawableChild(new ValueSlider(left, y + 24, COL_W, 20, "Красный", 0, 255, Config.skyR, true, v -> {
-            Config.skyR = (int) v;
-            autoEnableSky();
-        }));
-        addDrawableChild(new ValueSlider(left, y + 48, COL_W, 20, "Зелёный", 0, 255, Config.skyG, true, v -> {
-            Config.skyG = (int) v;
-            autoEnableSky();
-        }));
-        addDrawableChild(new ValueSlider(left, y + 72, COL_W, 20, "Синий", 0, 255, Config.skyB, true, v -> {
-            Config.skyB = (int) v;
-            autoEnableSky();
-        }));
-
-        ButtonWidget fog = ButtonWidget.builder(Text.empty(), b -> {
-            Config.fogFollowsSky = !Config.fogFollowsSky;
-            b.setMessage(yesNo("Туман в цвет неба", Config.fogFollowsSky));
-            Config.save();
-        }).dimensions(left, y + 108, COL_W, 20).build();
-        fog.setMessage(yesNo("Туман в цвет неба", Config.fogFollowsSky));
-        addDrawableChild(fog);
-
-        addDrawableChild(new ValueSlider(left, y + 132, COL_W, 20, "Скорость радуги", 0, 1, Config.rainbowSpeed, false,
-                v -> Config.rainbowSpeed = (float) v));
-
-        // ---------- Правая колонка: шляпа и частицы ----------
-        ButtonWidget hatBtn = ButtonWidget.builder(Text.empty(), b -> {
-            Config.hat = next(Config.hat);
-            b.setMessage(Text.literal("Шляпа: " + Config.hat.label));
-            Config.save();
-        }).dimensions(right, y, COL_W, 20).build();
-        hatBtn.setMessage(Text.literal("Шляпа: " + Config.hat.label));
-        addDrawableChild(hatBtn);
-
-        addDrawableChild(new ValueSlider(right, y + 24, COL_W, 20, "Цвет шляпы", 0, 1, Config.hatHue, false,
-                v -> Config.hatHue = (float) v));
-
-        ButtonWidget hatRainbow = ButtonWidget.builder(Text.empty(), b -> {
-            Config.hatRainbow = !Config.hatRainbow;
-            b.setMessage(yesNo("Радужная шляпа", Config.hatRainbow));
-            Config.save();
-        }).dimensions(right, y + 48, COL_W, 20).build();
-        hatRainbow.setMessage(yesNo("Радужная шляпа", Config.hatRainbow));
-        addDrawableChild(hatRainbow);
-
-        ButtonWidget fxBtn = ButtonWidget.builder(Text.empty(), b -> {
-            Config.fx = next(Config.fx);
-            b.setMessage(Text.literal("Частицы: " + Config.fx.label));
-            Config.save();
-        }).dimensions(right, y + 96, COL_W, 20).build();
-        fxBtn.setMessage(Text.literal("Частицы: " + Config.fx.label));
-        addDrawableChild(fxBtn);
-
-        addDrawableChild(new ValueSlider(right, y + 120, COL_W, 20, "Количество", 1, 10, Config.fxAmount, true,
-                v -> Config.fxAmount = (int) v));
-
-        // ---------- Кнопка закрыть ----------
-        addDrawableChild(ButtonWidget.builder(Text.literal("Готово"), b -> {
-            Config.save();
-            MinecraftClient.getInstance().setScreen(null);
-        }).dimensions(this.width / 2 - 75, y + 164, 150, 20).build());
-    }
-
-    private void autoEnableSky() {
-        if (Config.skyMode == Config.SkyMode.OFF) {
-            Config.skyMode = Config.SkyMode.COLOR;
-            if (skyButton != null) {
-                skyButton.setMessage(Text.literal("Небо: " + Config.skyMode.label));
-            }
-        }
-        Config.save();
     }
 
     @Override
@@ -125,64 +55,443 @@ public class VisualsScreen extends Screen {
         return false;
     }
 
-    @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        // тёмная панель под кнопками
-        ctx.fill(left - 10, top - 52, right + COL_W + 10, top + 196, 0xB0101020);
-
-        super.render(ctx, mouseX, mouseY, delta);
-
-        int tw = this.textRenderer.getWidth(this.title);
-        ctx.drawTextWithShadow(this.textRenderer, this.title, this.width / 2 - tw / 2, top - 42, 0xFFFFD27F);
-
-        String hint = "Right Shift - открыть/закрыть";
-        int hw = this.textRenderer.getWidth(hint);
-        ctx.drawTextWithShadow(this.textRenderer, hint, this.width / 2 - hw / 2, top - 30, 0xFFAAAAAA);
-
-        ctx.drawTextWithShadow(this.textRenderer, "НЕБО", left, top - 12, 0xFFFFFFFF);
-        ctx.drawTextWithShadow(this.textRenderer, "ШЛЯПА", right, top - 12, 0xFFFFFFFF);
-        ctx.drawTextWithShadow(this.textRenderer, "ЧАСТИЦЫ", right, top + 82, 0xFFFFFFFF);
-
-        // предпросмотр цвета неба
-        ctx.fill(left, top + 96, left + COL_W, top + 104, Config.skyColor());
+    // Колесо мыши (без @Override: если сигнатура другая, просто не будет прокрутки)
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        scrollTarget -= (float) verticalAmount * 26f;
+        if (scrollTarget < 0f) scrollTarget = 0f;
+        return true;
     }
 
-    /** Ползунок со значением в подписи. */
-    private static final class ValueSlider extends SliderWidget {
-        private final String label;
-        private final double min;
-        private final double max;
-        private final boolean integer;
-        private final DoubleConsumer onChange;
+    public void removed() {
+        Config.sanitize();
+        Config.save();
+    }
 
-        ValueSlider(int x, int y, int w, int h, String label, double min, double max, double current,
-                    boolean integer, DoubleConsumer onChange) {
-            super(x, y, w, h, Text.empty(), (current - min) / (max - min));
-            this.label = label;
-            this.min = min;
-            this.max = max;
-            this.integer = integer;
-            this.onChange = onChange;
-            updateMessage();
+    // ---------- Вспомогательные функции ----------
+
+    private static int argb(float a, int rgb) {
+        int ai = Math.max(0, Math.min(255, (int) (a * 255f)));
+        return (ai << 24) | (rgb & 0xFFFFFF);
+    }
+
+    private static int mix(int c1, int c2, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        int r = (int) (((c1 >> 16) & 255) * (1 - t) + ((c2 >> 16) & 255) * t);
+        int g = (int) (((c1 >> 8) & 255) * (1 - t) + ((c2 >> 8) & 255) * t);
+        int b = (int) ((c1 & 255) * (1 - t) + (c2 & 255) * t);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private float anim(String id, float target, float speed) {
+        if (!Config.animations) return target;
+        Float v = anims.get(id);
+        if (v == null) v = target;
+        v += (target - v) * Math.min(1f, dt * speed);
+        anims.put(id, v);
+        return v;
+    }
+
+    private void fill(int x1, int y1, int x2, int y2, int rgb, float a) {
+        if (a <= 0.003f || x2 <= x1 || y2 <= y1) return;
+        ctx.fill(x1, y1, x2, y2, argb(a, rgb));
+    }
+
+    /** Прямоугольник со скруглёнными углами (без наложения, чтобы не было полос). */
+    private void rrect(int x1, int y1, int x2, int y2, int rgb, float a) {
+        if (x2 - x1 < 6 || y2 - y1 < 6) {
+            fill(x1, y1, x2, y2, rgb, a);
+            return;
+        }
+        fill(x1 + 2, y1, x2 - 2, y1 + 1, rgb, a);
+        fill(x1 + 1, y1 + 1, x2 - 1, y1 + 2, rgb, a);
+        fill(x1, y1 + 2, x2, y2 - 2, rgb, a);
+        fill(x1 + 1, y2 - 2, x2 - 1, y2 - 1, rgb, a);
+        fill(x1 + 2, y2 - 1, x2 - 2, y2, rgb, a);
+    }
+
+    private void hgrad(int x1, int y1, int x2, int y2, int c1, int c2, float a) {
+        int w = x2 - x1;
+        for (int i = 0; i < w; i += 2) {
+            float t = i / (float) Math.max(1, w - 1);
+            fill(x1 + i, y1, Math.min(x2, x1 + i + 2), y2, mix(c1, c2, t), a);
+        }
+    }
+
+    private void text(String s, int x, int y, int rgb, float a) {
+        if (a < 0.08f) return;
+        ctx.drawTextWithShadow(tr, s, x, y, argb(a, rgb));
+    }
+
+    private boolean hover(int x1, int y1, int x2, int y2) {
+        return inContent && mx >= x1 && mx < x2 && my >= y1 && my < y2;
+    }
+
+    // ---------- Элементы меню ----------
+
+    private void section(String s) {
+        rowY += 2;
+        int y = (int) rowY;
+        text(s, cx1 + 4, y, accent, fade);
+        fill(cx1 + 4 + tr.getWidth(s) + 5, y + 4, cx2 - 4, y + 5, accent, 0.25f * fade);
+        rowY += 13;
+    }
+
+    private void note(String s) {
+        text(s, cx1 + 4, (int) rowY, 0x8A8AA0, fade);
+        rowY += 11;
+    }
+
+    private boolean toggle(String id, String label, boolean value) {
+        int y = (int) rowY;
+        int x1 = cx1 + 2;
+        int x2 = cx2 - 2;
+        boolean hov = hover(x1, y, x2, y + ROW - 2);
+        float h = anim("h:" + id, hov ? 1f : 0f, 14f);
+        rrect(x1, y, x2, y + ROW - 2, mix(0x1E1E2C, 0x2A2A3E, h), fade);
+        text(label, x1 + 7, y + 5, 0xEDEDF7, fade);
+
+        float t = anim("t:" + id, value ? 1f : 0f, 16f);
+        int sw = 24;
+        int sh = 10;
+        int sx2 = x2 - 7;
+        int sx1 = sx2 - sw;
+        int sy = y + (ROW - 2 - sh) / 2;
+        rrect(sx1, sy, sx2, sy + sh, mix(0x3A3A4E, accent, t), fade);
+        int kx = sx1 + 1 + (int) (t * (sw - sh));
+        fill(kx, sy + 1, kx + sh - 2, sy + sh - 1, 0xFFFFFF, fade);
+
+        rowY += ROW;
+        if (clicked && hov) {
+            pendingSave = true;
+            return !value;
+        }
+        return value;
+    }
+
+    private float slider(String id, String label, float value, float min, float max, int digits) {
+        int y = (int) rowY;
+        int x1 = cx1 + 2;
+        int x2 = cx2 - 2;
+        int bx1 = x1 + 7;
+        int bx2 = x2 - 7;
+        int by = y + 14;
+        boolean hov = hover(x1, y, x2, y + ROW + 4);
+        if (clicked && hov) dragging = id;
+        if (id.equals(dragging) && down) {
+            float ff = MathHelper.clamp((mx - bx1) / (float) (bx2 - bx1), 0f, 1f);
+            float nv = min + ff * (max - min);
+            if (nv != value) {
+                value = nv;
+                pendingSave = true;
+            }
+        }
+        float f = MathHelper.clamp((value - min) / (max - min), 0f, 1f);
+        float sf = anim("s:" + id, f, 30f);
+        float h = anim("h:" + id, hov ? 1f : 0f, 14f);
+
+        rrect(x1, y, x2, y + ROW + 2, mix(0x1E1E2C, 0x2A2A3E, h), fade);
+        text(label, x1 + 7, y + 3, 0xEDEDF7, fade);
+        String val = String.format("%." + digits + "f", value);
+        text(val, x2 - 7 - tr.getWidth(val), y + 3, 0xB8B8D0, fade);
+
+        rrect(bx1, by, bx2, by + 4, 0x34344A, fade);
+        int fx = bx1 + (int) ((bx2 - bx1) * sf);
+        fill(bx1, by, Math.max(bx1 + 1, fx), by + 4, accent, fade);
+        fill(fx - 2, by - 2, fx + 2, by + 6, 0xFFFFFF, fade);
+
+        rowY += ROW + 6;
+        return value;
+    }
+
+    private int chips(String id, String[] labels, int selected) {
+        int x = cx1 + 2;
+        int y = (int) rowY;
+        int right = cx2 - 2;
+        int result = selected;
+        for (int i = 0; i < labels.length; i++) {
+            int w = tr.getWidth(labels[i]) + 14;
+            if (x + w > right) {
+                x = cx1 + 2;
+                y += 20;
+            }
+            boolean hov = hover(x, y, x + w, y + 17);
+            boolean sel = i == selected;
+            float s = anim("c:" + id + i, sel ? 1f : 0f, 14f);
+            float h = anim("ch:" + id + i, hov ? 1f : 0f, 14f);
+            int bg = mix(mix(0x1E1E2C, 0x2C2C42, h), accent, s * 0.55f);
+            rrect(x, y, x + w, y + 17, bg, fade);
+            text(labels[i], x + 7, y + 5, sel ? 0xFFFFFF : 0xC4C4DA, fade);
+            if (clicked && hov) {
+                result = i;
+                pendingSave = true;
+            }
+            x += w + 4;
+        }
+        rowY = y + 22;
+        return result;
+    }
+
+    private void colorBar(int rgb) {
+        int y = (int) rowY;
+        rrect(cx1 + 2, y, cx2 - 2, y + 8, rgb, fade);
+        rowY += 12;
+    }
+
+    private void presets() {
+        int n = Config.PRESETS.length;
+        int gap = 4;
+        int total = cx2 - cx1 - 4;
+        int w = (total - gap * (n - 1)) / n;
+        int x = cx1 + 2;
+        int y = (int) rowY + 2;
+        for (int i = 0; i < n; i++) {
+            int[] c = Config.PRESETS[i];
+            int rgb = (c[0] << 16) | (c[1] << 8) | c[2];
+            boolean hov = hover(x, y - 2, x + w, y + 16);
+            float h = anim("p:" + i, hov ? 1f : 0f, 14f);
+            rrect(x, y - (int) (h * 2f), x + w, y + 16, rgb, fade);
+            if (clicked && hov) {
+                Config.skyR = c[0];
+                Config.skyG = c[1];
+                Config.skyB = c[2];
+                if (Config.skyMode == Config.SkyMode.OFF || Config.skyMode == Config.SkyMode.RAINBOW) {
+                    Config.skyMode = Config.SkyMode.COLOR;
+                }
+                pendingSave = true;
+            }
+            x += w + gap;
+        }
+        rowY += 24;
+    }
+
+    // ---------- Вкладки ----------
+
+    private void buildWorld() {
+        section("НЕБО");
+        Config.SkyMode[] modes = Config.SkyMode.values();
+        String[] labels = new String[modes.length];
+        for (int i = 0; i < modes.length; i++) labels[i] = modes[i].label;
+        int mode = chips("skymode", labels, Config.skyMode.ordinal());
+        Config.skyMode = modes[mode];
+
+        section("ЦВЕТ");
+        presets();
+        int r = Math.round(slider("r", "Красный", Config.skyR, 0, 255, 0));
+        int g = Math.round(slider("g", "Зелёный", Config.skyG, 0, 255, 0));
+        int b = Math.round(slider("b", "Синий", Config.skyB, 0, 255, 0));
+        if (r != Config.skyR || g != Config.skyG || b != Config.skyB) {
+            Config.skyR = r;
+            Config.skyG = g;
+            Config.skyB = b;
+            if (Config.skyMode == Config.SkyMode.OFF || Config.skyMode == Config.SkyMode.RAINBOW) {
+                Config.skyMode = Config.SkyMode.COLOR;
+            }
+        }
+        colorBar(Config.skyColor() & 0xFFFFFF);
+        Config.rainbowSpeed = slider("rs", "Скорость радуги и пульса", Config.rainbowSpeed, 0f, 1f, 2);
+
+        section("ДОПОЛНИТЕЛЬНО");
+        Config.fogFollowsSky = toggle("fog", "Туман в цвет неба", Config.fogFollowsSky);
+        Config.cloudsFollowSky = toggle("clouds", "Облака в цвет неба", Config.cloudsFollowSky);
+        Config.sunsetFollowsSky = toggle("sunset", "Закат в цвет неба", Config.sunsetFollowsSky);
+        Config.starsAlways = toggle("stars", "Звёзды видны днём", Config.starsAlways);
+    }
+
+    private void buildHats() {
+        section("ШЛЯПА");
+        Config.Hat[] hats = Config.Hat.values();
+        String[] labels = new String[hats.length];
+        for (int i = 0; i < hats.length; i++) labels[i] = hats[i].label;
+        int idx = chips("hat", labels, Config.hat.ordinal());
+        Config.hat = hats[idx];
+
+        section("ВИД");
+        Config.hatHue = slider("hh", "Цвет шляпы", Config.hatHue, 0f, 1f, 2);
+        colorBar(MathHelper.hsvToRgb(Config.hatHue, 1f, 1f));
+        Config.hatRainbow = toggle("hr", "Радужная шляпа", Config.hatRainbow);
+        Config.hatSize = slider("hs", "Размер", Config.hatSize, 0.5f, 2f, 2);
+        note("Шляпы видны от третьего лица (F5).");
+        note("Их видишь только ты.");
+    }
+
+    private void buildFx() {
+        section("ЧАСТИЦЫ");
+        Config.Fx[] fxs = Config.Fx.values();
+        String[] labels = new String[fxs.length];
+        for (int i = 0; i < fxs.length; i++) labels[i] = fxs[i].label;
+        int idx = chips("fx", labels, Config.fx.ordinal());
+        Config.fx = fxs[idx];
+
+        section("НАСТРОЙКА");
+        Config.fxAmount = Math.round(slider("fa", "Количество", Config.fxAmount, 1, 10, 0));
+        note("Частицы видишь только ты.");
+    }
+
+    private void buildHud() {
+        section("ИНФОРМАЦИЯ");
+        Config.hudWatermark = toggle("hw", "Название DenchikVisuals", Config.hudWatermark);
+        Config.hudFps = toggle("hf", "FPS", Config.hudFps);
+        Config.hudPing = toggle("hp", "Пинг", Config.hudPing);
+        Config.hudCoords = toggle("hc", "Координаты", Config.hudCoords);
+        Config.hudDirection = toggle("hd", "Направление", Config.hudDirection);
+        Config.hudTime = toggle("ht", "Время", Config.hudTime);
+        Config.hudCps = toggle("hcps", "CPS (клики в секунду)", Config.hudCps);
+    }
+
+    private void buildCombat() {
+        section("БОЙ (ВИЗУАЛ)");
+        Config.targetHud = toggle("th", "Информация о цели (здоровье)", Config.targetHud);
+        Config.hitEffect = toggle("he", "Частицы при ударе", Config.hitEffect);
+        Config.hudKeys = toggle("hk", "Клавиши (WASD, мышь)", Config.hudKeys);
+        Config.hudArmor = toggle("ha", "Прочность брони", Config.hudArmor);
+        rowY += 4;
+        note("Только визуал и информация.");
+        note("Ничего, что играет за тебя.");
+    }
+
+    private void buildCamera() {
+        section("ЗУМ");
+        Config.zoomEnabled = toggle("ze", "Зум (держи клавишу C)", Config.zoomEnabled);
+        Config.zoomFov = Math.round(slider("zf", "Угол обзора при зуме", Config.zoomFov, 30, 60, 0));
+        note("Меньше значение = сильнее приближение.");
+    }
+
+    private void buildTheme() {
+        section("ЦВЕТ ПАНЕЛИ");
+        Config.accentHue = slider("ah", "Цвет акцента", Config.accentHue, 0f, 1f, 2);
+        Config.accentRainbow = toggle("ar", "Радужный акцент", Config.accentRainbow);
+        section("ВНЕШНИЙ ВИД");
+        Config.panelAlpha = slider("pa", "Прозрачность панели", Config.panelAlpha, 0.5f, 1f, 2);
+        Config.animations = toggle("an", "Анимации", Config.animations);
+    }
+
+    // ---------- Отрисовка ----------
+
+    @Override
+    public void render(DrawContext c, int mouseX, int mouseY, float delta) {
+        super.render(c, mouseX, mouseY, delta);
+
+        this.ctx = c;
+        this.tr = this.textRenderer;
+        this.mx = mouseX;
+        this.my = mouseY;
+
+        long now = System.nanoTime();
+        dt = lastNs == 0L ? 0.016f : Math.min(0.05f, (now - lastNs) / 1.0e9f);
+        lastNs = now;
+
+        long handle = MinecraftClient.getInstance().getWindow().getHandle();
+        down = GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        clicked = down && !prevDown;
+        boolean released = !down && prevDown;
+        prevDown = down;
+        if (released) dragging = null;
+
+        if (Config.animations) {
+            open = Math.min(1f, open + dt * 4.5f);
+        } else {
+            open = 1f;
+        }
+        float e = 1f - (1f - open) * (1f - open) * (1f - open);
+        fade = e;
+        float panelA = e * Config.panelAlpha;
+
+        accent = Config.accentRgb();
+        int accent2 = MathHelper.hsvToRgb(((Config.accentRainbow
+                ? (System.currentTimeMillis() % 6000L) / 6000f : Config.accentHue) + 0.12f) % 1f, 0.7f, 0.95f);
+
+        int pw = Math.min(this.width - 16, 430);
+        int ph = Math.min(this.height - 16, 262);
+        int px = (this.width - pw) / 2;
+        int py = (this.height - ph) / 2 + (int) ((1f - e) * 16f);
+
+        // тень и фон
+        fill(px - 3, py - 3, px + pw + 3, py + ph + 3, 0x000000, 0.35f * e);
+        rrect(px, py, px + pw, py + ph, 0x0E0E16, panelA);
+
+        // шапка
+        hgrad(px + 1, py + 1, px + pw - 1, py + 28, mix(accent, 0x101018, 0.45f), mix(accent2, 0x101018, 0.65f), 0.9f * e);
+        drawTitle(px + 10, py + 6);
+        text("визуалы для Minecraft 1.21.11", px + 10, py + 17, 0xC9C9E0, fade);
+
+        // боковая панель с вкладками
+        int tx1 = px + 6;
+        int tx2 = px + 88;
+        int ty = py + 36;
+        tabPos = Config.animations ? tabPos + (tab - tabPos) * Math.min(1f, dt * 14f) : tab;
+        int hy = ty + (int) (tabPos * 24f);
+        rrect(tx1, hy, tx2, hy + 22, accent, 0.28f * e);
+        fill(tx1, hy + 4, tx1 + 2, hy + 18, accent, e);
+        for (int i = 0; i < TABS.length; i++) {
+            int y = ty + i * 24;
+            boolean hov = mx >= tx1 && mx < tx2 && my >= y && my < y + 22;
+            float h = anim("tab" + i, hov ? 1f : 0f, 14f);
+            int col = i == tab ? 0xFFFFFF : mix(0x9A9AB2, 0xFFFFFF, h);
+            text(TABS[i], tx1 + 10 + (int) (h * 2f), y + 7, col, fade);
+            if (clicked && hov && i != tab) {
+                tab = i;
+                scroll = 0f;
+                scrollTarget = 0f;
+            }
         }
 
-        private double real() {
-            return min + this.value * (max - min);
+        // область содержимого
+        cx1 = px + 94;
+        cy1 = py + 34;
+        cx2 = px + pw - 8;
+        cy2 = py + ph - 20;
+        rrect(cx1 - 3, cy1 - 3, cx2 + 3, cy2 + 3, 0x14141E, panelA);
+        inContent = mx >= cx1 && mx <= cx2 && my >= cy1 && my <= cy2;
+
+        scroll = Config.animations ? scroll + (scrollTarget - scroll) * Math.min(1f, dt * 14f) : scrollTarget;
+        float top = cy1 - scroll + 2f;
+        rowY = top;
+
+        ctx.enableScissor(cx1, cy1, cx2, cy2);
+        switch (tab) {
+            case 0 -> buildWorld();
+            case 1 -> buildHats();
+            case 2 -> buildFx();
+            case 3 -> buildHud();
+            case 4 -> buildCombat();
+            case 5 -> buildCamera();
+            default -> buildTheme();
+        }
+        ctx.disableScissor();
+
+        contentHeight = rowY - top;
+        float maxScroll = Math.max(0f, contentHeight - (cy2 - cy1) + 4f);
+        if (scrollTarget > maxScroll) scrollTarget = maxScroll;
+        if (scrollTarget < 0f) scrollTarget = 0f;
+        if (maxScroll > 0f) {
+            int trackH = cy2 - cy1;
+            int thumbH = Math.max(14, (int) (trackH * trackH / (contentHeight + 4f)));
+            int thumbY = cy1 + (int) ((trackH - thumbH) * (scroll / maxScroll));
+            fill(cx2 + 1, thumbY, cx2 + 3, thumbY + thumbH, accent, 0.8f * fade);
         }
 
-        @Override
-        protected void updateMessage() {
-            if (label == null) return;
-            double v = real();
-            String s = integer ? String.valueOf(Math.round(v)) : String.format("%.2f", v);
-            setMessage(Text.literal(label + ": " + s));
-        }
+        // подвал
+        text("RShift / Esc - закрыть     C - зум", px + 10, py + ph - 13, 0x7C7C94, fade);
+        String ver = "v1.1.0";
+        text(ver, px + pw - 10 - tr.getWidth(ver), py + ph - 13, 0x7C7C94, fade);
 
-        @Override
-        protected void applyValue() {
-            double v = real();
-            onChange.accept(integer ? Math.round(v) : v);
+        // сохранение, когда мышь отпущена
+        if (pendingSave && !down) {
+            Config.sanitize();
             Config.save();
+            pendingSave = false;
+        }
+    }
+
+    private void drawTitle(int x, int y) {
+        String s = "DenchikVisuals";
+        long t = System.currentTimeMillis();
+        int cx = x;
+        for (int i = 0; i < s.length(); i++) {
+            String ch = String.valueOf(s.charAt(i));
+            float hue = (((t % 3000L) / 3000f) + i * 0.05f) % 1f;
+            text(ch, cx, y, MathHelper.hsvToRgb(hue, 0.5f, 1f), fade);
+            cx += tr.getWidth(ch);
         }
     }
 }

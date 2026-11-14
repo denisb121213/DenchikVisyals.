@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "EnvironmentAttributeInterpolatorMixin",
-    "MinecraftClientMixin"
+    "MinecraftClientMixin",
+    "InGameHudMixin"
   ],
   "injectors": {
     "defaultRequire": 0

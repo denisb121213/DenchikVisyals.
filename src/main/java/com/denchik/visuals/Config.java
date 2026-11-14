@@ -6,6 +6,8 @@ import net.minecraft.util.math.MathHelper;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -14,67 +16,131 @@ import java.util.Properties;
 public final class Config {
 
     public enum SkyMode {
-        OFF("Выкл"), COLOR("Свой цвет"), RAINBOW("Радуга");
+        OFF("Выкл"), COLOR("Свой цвет"), RAINBOW("Радуга"), PULSE("Пульс");
         public final String label;
         SkyMode(String label) { this.label = label; }
     }
 
     public enum Hat {
-        NONE("Нет"), HALO("Нимб"), WIZARD("Колпак мага"), CROWN("Корона"), TOP_HAT("Цилиндр");
+        NONE("Нет"), HALO("Нимб"), WIZARD("Колпак"), CROWN("Корона"), TOP_HAT("Цилиндр"),
+        CAT_EARS("Ушки"), HORNS("Рога");
         public final String label;
         Hat(String label) { this.label = label; }
     }
 
     public enum Fx {
-        NONE("Нет"), HEARTS("Сердечки"), FLAMES("Огонь"), SNOW("Снег"),
-        STARS("Звёзды"), NOTES("Ноты"), RAINBOW_TRAIL("Радужный след"), SPIRAL("Спираль");
+        NONE("Нет"), HEARTS("Сердца"), FLAMES("Огонь"), SNOW("Снег"), STARS("Звёзды"),
+        NOTES("Ноты"), RAINBOW_TRAIL("Радуга"), SPIRAL("Спираль"), MAGIC("Магия"),
+        SOUL("Души"), ELECTRIC("Искры"), TOTEM("Тотем");
         public final String label;
         Fx(String label) { this.label = label; }
     }
 
-    public static SkyMode skyMode = SkyMode.OFF;
-    public static int skyR = 140, skyG = 70, skyB = 255;
-    public static boolean fogFollowsSky = true;
-    public static float rainbowSpeed = 0.4f;
+    /** Готовые цвета неба (R, G, B). */
+    public static final int[][] PRESETS = {
+            {140, 70, 255}, {255, 120, 70}, {40, 140, 255}, {80, 255, 120},
+            {255, 150, 200}, {25, 15, 45}, {170, 230, 255}, {160, 20, 30}
+    };
 
+    // ---------- Мир ----------
+    public static SkyMode skyMode = SkyMode.OFF;
+    public static int skyR = 140;
+    public static int skyG = 70;
+    public static int skyB = 255;
+    public static float rainbowSpeed = 0.4f;
+    public static boolean fogFollowsSky = true;
+    public static boolean cloudsFollowSky = true;
+    public static boolean sunsetFollowsSky = true;
+    public static boolean starsAlways = false;
+
+    // ---------- Шляпы ----------
     public static Hat hat = Hat.NONE;
     public static float hatHue = 0.13f;
     public static boolean hatRainbow = false;
+    public static float hatSize = 1.0f;
 
+    // ---------- Частицы ----------
     public static Fx fx = Fx.NONE;
     public static int fxAmount = 4;
 
+    // ---------- HUD ----------
+    public static boolean hudWatermark = true;
+    public static boolean hudFps = true;
+    public static boolean hudPing = false;
+    public static boolean hudCoords = true;
+    public static boolean hudDirection = false;
+    public static boolean hudTime = false;
+    public static boolean hudCps = true;
+
+    // ---------- Бой (только визуал и информация) ----------
+    public static boolean targetHud = true;
+    public static boolean hitEffect = false;
+    public static boolean hudKeys = false;
+    public static boolean hudArmor = true;
+
+    // ---------- Камера ----------
+    public static boolean zoomEnabled = true;
+    public static int zoomFov = 30;
+
+    // ---------- Тема ----------
+    public static float accentHue = 0.75f;
+    public static boolean accentRainbow = false;
+    public static boolean animations = true;
+    public static float panelAlpha = 0.92f;
+
+    private Config() {}
+
     /** Цвет неба в формате ARGB. */
     public static int skyColor() {
-        int rgb;
+        int r = skyR;
+        int g = skyG;
+        int b = skyB;
         if (skyMode == SkyMode.RAINBOW) {
             long period = (long) (20000 - 18000 * rainbowSpeed);
             if (period < 1000) period = 1000;
             float hue = (System.currentTimeMillis() % period) / (float) period;
-            rgb = MathHelper.hsvToRgb(hue, 0.65f, 1.0f);
-        } else {
-            rgb = (skyR << 16) | (skyG << 8) | skyB;
+            int rgb = MathHelper.hsvToRgb(hue, 0.65f, 1.0f);
+            r = (rgb >> 16) & 255;
+            g = (rgb >> 8) & 255;
+            b = rgb & 255;
+        } else if (skyMode == SkyMode.PULSE) {
+            long period = (long) (8000 - 6500 * rainbowSpeed);
+            if (period < 1000) period = 1000;
+            double t = (System.currentTimeMillis() % period) / (double) period;
+            float f = 0.55f + 0.45f * (float) (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+            r = (int) (r * f);
+            g = (int) (g * f);
+            b = (int) (b * f);
         }
-        return 0xFF000000 | rgb;
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
+
+    /** Цвет акцента панели и HUD (RGB без прозрачности). */
+    public static int accentRgb() {
+        float hue = accentRainbow ? (System.currentTimeMillis() % 6000L) / 6000f : accentHue;
+        return MathHelper.hsvToRgb(hue, 0.6f, 1.0f);
+    }
+
+    // ---------- Сохранение ----------
 
     private static Path file() {
         return FabricLoader.getInstance().getConfigDir().resolve("denchikvisuals.properties");
     }
 
+    private static boolean isSetting(Field f) {
+        int m = f.getModifiers();
+        return Modifier.isStatic(m) && Modifier.isPublic(m) && !Modifier.isFinal(m);
+    }
+
     public static void save() {
         Properties p = new Properties();
-        p.setProperty("skyMode", skyMode.name());
-        p.setProperty("skyR", String.valueOf(skyR));
-        p.setProperty("skyG", String.valueOf(skyG));
-        p.setProperty("skyB", String.valueOf(skyB));
-        p.setProperty("fogFollowsSky", String.valueOf(fogFollowsSky));
-        p.setProperty("rainbowSpeed", String.valueOf(rainbowSpeed));
-        p.setProperty("hat", hat.name());
-        p.setProperty("hatHue", String.valueOf(hatHue));
-        p.setProperty("hatRainbow", String.valueOf(hatRainbow));
-        p.setProperty("fx", fx.name());
-        p.setProperty("fxAmount", String.valueOf(fxAmount));
+        for (Field f : Config.class.getDeclaredFields()) {
+            if (!isSetting(f)) continue;
+            try {
+                p.setProperty(f.getName(), String.valueOf(f.get(null)));
+            } catch (IllegalAccessException ignored) {
+            }
+        }
         try (Writer w = Files.newBufferedWriter(file())) {
             p.store(w, "DenchikVisuals");
         } catch (IOException ignored) {
@@ -90,28 +156,51 @@ public final class Config {
         } catch (IOException e) {
             return;
         }
-        try {
-            skyMode = SkyMode.valueOf(p.getProperty("skyMode", skyMode.name()));
-            skyR = clampInt(p.getProperty("skyR"), skyR);
-            skyG = clampInt(p.getProperty("skyG"), skyG);
-            skyB = clampInt(p.getProperty("skyB"), skyB);
-            fogFollowsSky = Boolean.parseBoolean(p.getProperty("fogFollowsSky", String.valueOf(fogFollowsSky)));
-            rainbowSpeed = Float.parseFloat(p.getProperty("rainbowSpeed", String.valueOf(rainbowSpeed)));
-            hat = Hat.valueOf(p.getProperty("hat", hat.name()));
-            hatHue = Float.parseFloat(p.getProperty("hatHue", String.valueOf(hatHue)));
-            hatRainbow = Boolean.parseBoolean(p.getProperty("hatRainbow", String.valueOf(hatRainbow)));
-            fx = Fx.valueOf(p.getProperty("fx", fx.name()));
-            fxAmount = Math.max(1, Math.min(10, clampInt(p.getProperty("fxAmount"), fxAmount)));
-        } catch (Exception ignored) {
+        for (Field field : Config.class.getDeclaredFields()) {
+            if (!isSetting(field)) continue;
+            String s = p.getProperty(field.getName());
+            if (s == null) continue;
+            s = s.trim();
+            try {
+                Class<?> t = field.getType();
+                if (t == int.class) {
+                    field.setInt(null, Integer.parseInt(s));
+                } else if (t == float.class) {
+                    field.setFloat(null, Float.parseFloat(s));
+                } else if (t == boolean.class) {
+                    field.setBoolean(null, Boolean.parseBoolean(s));
+                } else if (t.isEnum()) {
+                    for (Object c : t.getEnumConstants()) {
+                        if (((Enum<?>) c).name().equals(s)) {
+                            field.set(null, c);
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
         }
+        sanitize();
     }
 
-    private static int clampInt(String s, int def) {
-        if (s == null) return def;
-        try {
-            return Math.max(0, Math.min(255, Integer.parseInt(s.trim())));
-        } catch (NumberFormatException e) {
-            return def;
-        }
+    private static int clampI(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    private static float clampF(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    public static void sanitize() {
+        skyR = clampI(skyR, 0, 255);
+        skyG = clampI(skyG, 0, 255);
+        skyB = clampI(skyB, 0, 255);
+        rainbowSpeed = clampF(rainbowSpeed, 0f, 1f);
+        hatHue = clampF(hatHue, 0f, 1f);
+        hatSize = clampF(hatSize, 0.5f, 2f);
+        fxAmount = clampI(fxAmount, 1, 10);
+        zoomFov = clampI(zoomFov, 30, 60);
+        accentHue = clampF(accentHue, 0f, 1f);
+        panelAlpha = clampF(panelAlpha, 0.5f, 1f);
     }
 }

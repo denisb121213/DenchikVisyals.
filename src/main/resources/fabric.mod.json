@@ -3,7 +3,7 @@
   "id": "denchikvisuals",
   "version": "${version}",
   "name": "DenchikVisuals",
-  "description": "Visuals for Minecraft: sky color, hats, particles. Press Right Shift to open the menu.",
+  "description": "Visuals for Minecraft: sky, hats, particles, HUD. Press Right Shift to open the menu.",
   "authors": ["Denchik"],
   "license": "MIT",
   "environment": "client",
