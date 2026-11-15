@@ -110,8 +110,6 @@ public final class Config {
     public static boolean animations = true;
     public static float panelAlpha = 0.92f;
 
-    // ---------- Производительность ----------
-    public static boolean ecoMode = false;
 
     private Config() {}
 

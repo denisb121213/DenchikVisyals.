@@ -96,7 +96,7 @@ public final class Effects {
         if (Config.hat != Config.Hat.NONE && !firstPerson) {
             spawnHat(client, p);
         }
-        if (Config.fx != Config.Fx.NONE && (!Config.ecoMode || ticks % 2 == 0)) {
+        if (Config.fx != Config.Fx.NONE) {
             spawnFx(client, p);
         }
     }
@@ -290,7 +290,7 @@ public final class Effects {
     }
 
     private static void spawnHat(MinecraftClient c, ClientPlayerEntity p) {
-        if (ticks % (Config.ecoMode ? 4 : 2) != 0) return;
+        if (ticks % 2 != 0) return;
         double s = Config.hatSize;
         double x = p.getX();
         double z = p.getZ();
@@ -375,7 +375,7 @@ public final class Effects {
         double y = p.getY();
         double z = p.getZ();
         double h = p.getHeight();
-        int n = Config.ecoMode ? Math.max(1, Config.fxAmount / 2) : Config.fxAmount;
+        int n = Config.fxAmount;
 
         switch (Config.fx) {
             case HEARTS -> {

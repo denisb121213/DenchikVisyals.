@@ -14,7 +14,7 @@ import java.util.Map;
 /** Меню DenchikVisuals (Right Shift). Нарисовано вручную, с анимациями. */
 public class VisualsScreen extends Screen {
 
-    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Игрок", "Камера", "FPS", "Тема"};
+    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Игрок", "Камера", "Тема"};
     private static final int ROW = 20;
 
     private int tab = 0;
@@ -83,7 +83,7 @@ public class VisualsScreen extends Screen {
     }
 
     private static boolean animOn() {
-        return Config.animations && !Config.ecoMode;
+        return Config.animations;
     }
 
     private float anim(String id, float target, float speed) {
@@ -402,36 +402,6 @@ public class VisualsScreen extends Screen {
         note("На серверах: только твоя команда.");
     }
 
-    private String perfMsg = "";
-
-    private void buildPerf() {
-        section("ЭКО-РЕЖИМ МОДА");
-        Config.ecoMode = toggle("eco", "Эко-режим (меньше частиц, без анимаций)", Config.ecoMode);
-        note("Шляпы и частицы создаются реже,");
-        note("меню работает без анимаций.");
-
-        section("НАСТРОЙКИ ИГРЫ ОДНОЙ КНОПКОЙ");
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (button("pf0", "Слабый ПК", "дальность 6, без облаков")) {
-            Perf.apply(mc, 0);
-            perfMsg = "Применено: Слабый ПК";
-        }
-        if (button("pf1", "Средний ПК", "дальность 10")) {
-            Perf.apply(mc, 1);
-            perfMsg = "Применено: Средний ПК";
-        }
-        if (button("pf2", "Мощный ПК (красиво)", "всё включено")) {
-            Perf.apply(mc, 2);
-            perfMsg = "Применено: Мощный ПК";
-        }
-        if (!perfMsg.isEmpty()) {
-            note(perfMsg);
-        }
-        rowY += 2;
-        note("Ещё сильнее поднимает FPS мод Sodium");
-        note("(скачай на modrinth.com).");
-    }
-
     private void buildCamera() {
         section("ЗУМ");
         Config.zoomEnabled = toggle("ze", "Зум (держи клавишу C)", Config.zoomEnabled);
@@ -539,7 +509,6 @@ public class VisualsScreen extends Screen {
             case 4 -> buildCombat();
             case 5 -> buildPlayer();
             case 6 -> buildCamera();
-            case 7 -> buildPerf();
             default -> buildTheme();
         }
         ctx.disableScissor();
@@ -557,7 +526,7 @@ public class VisualsScreen extends Screen {
 
         // подвал
         text("RShift / Esc - закрыть     C - зум", px + 10, py + ph - 13, 0x7C7C94, fade);
-        String ver = "v1.3.1";
+        String ver = "v1.3.2";
         text(ver, px + pw - 10 - tr.getWidth(ver), py + ph - 13, 0x7C7C94, fade);
 
         // сохранение, когда мышь отпущена
