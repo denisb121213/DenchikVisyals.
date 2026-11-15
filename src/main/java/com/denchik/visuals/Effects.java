@@ -96,7 +96,7 @@ public final class Effects {
         if (Config.hat != Config.Hat.NONE && !firstPerson) {
             spawnHat(client, p);
         }
-        if (Config.fx != Config.Fx.NONE) {
+        if (Config.fx != Config.Fx.NONE && (!Config.ecoMode || ticks % 2 == 0)) {
             spawnFx(client, p);
         }
     }
@@ -184,7 +184,7 @@ public final class Effects {
         }
     }
 
-    // ---------- Быстро сложить в сундук (клавиша V) ----------
+    // ---------- Сундук: сложить / забрать (клавиша V и кнопки) ----------
 
     private static void handleQuickStack(MinecraftClient client, long handle) {
         boolean v = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_V) == GLFW.GLFW_PRESS;
@@ -193,31 +193,50 @@ public final class Effects {
 
         ClientPlayerEntity p = client.player;
         if (!(client.currentScreen instanceof GenericContainerScreen) || p == null
-                || !(p.currentScreenHandler instanceof GenericContainerScreenHandler handler)) {
+                || !(p.currentScreenHandler instanceof GenericContainerScreenHandler)) {
             quickQueue.clear();
             return;
         }
 
         if (Config.quickStack && edge) {
-            quickQueue.clear();
-            int chestSize = handler.getRows() * 9;
-            Set<Item> inChest = new HashSet<>();
-            for (int i = 0; i < chestSize; i++) {
-                ItemStack st = handler.getSlot(i).getStack();
-                if (!st.isEmpty()) inChest.add(st.getItem());
-            }
-            for (int i = chestSize; i < chestSize + 27; i++) {
-                ItemStack st = handler.getSlot(i).getStack();
-                if (!st.isEmpty() && inChest.contains(st.getItem())) quickQueue.addLast(i);
-            }
-            quickSync = handler.syncId;
-            p.sendMessage(Text.literal("Складываю стаков: " + quickQueue.size()), true);
+            chestAction(client, 0);
         }
 
-        if (!quickQueue.isEmpty() && ticks % 2 == 0 && client.interactionManager != null) {
+        if (!quickQueue.isEmpty() && ticks % Math.max(1, Config.quickDelay) == 0 && client.interactionManager != null) {
             int slot = quickQueue.pollFirst();
             client.interactionManager.clickSlot(quickSync, slot, 0, SlotActionType.QUICK_MOVE, p);
         }
+    }
+
+    /** mode: 0 - сложить то, что уже есть в сундуке, 1 - сложить всё (без хотбара), 2 - забрать всё. */
+    public static void chestAction(MinecraftClient client, int mode) {
+        ClientPlayerEntity p = client.player;
+        if (p == null || !(p.currentScreenHandler instanceof GenericContainerScreenHandler handler)) return;
+
+        quickQueue.clear();
+        int chestSize = handler.getRows() * 9;
+
+        if (mode == 2) {
+            for (int i = 0; i < chestSize; i++) {
+                if (!handler.getSlot(i).getStack().isEmpty()) quickQueue.addLast(i);
+            }
+        } else {
+            Set<Item> inChest = new HashSet<>();
+            if (mode == 0) {
+                for (int i = 0; i < chestSize; i++) {
+                    ItemStack st = handler.getSlot(i).getStack();
+                    if (!st.isEmpty()) inChest.add(st.getItem());
+                }
+            }
+            for (int i = chestSize; i < chestSize + 27; i++) {
+                ItemStack st = handler.getSlot(i).getStack();
+                if (!st.isEmpty() && (mode == 1 || inChest.contains(st.getItem()))) quickQueue.addLast(i);
+            }
+        }
+
+        quickSync = handler.syncId;
+        String what = mode == 2 ? "Забираю стаков: " : "Складываю стаков: ";
+        p.sendMessage(Text.literal(what + quickQueue.size()), true);
     }
 
     // ---------- Зум (удерживай C) ----------
@@ -271,7 +290,7 @@ public final class Effects {
     }
 
     private static void spawnHat(MinecraftClient c, ClientPlayerEntity p) {
-        if (ticks % 2 != 0) return;
+        if (ticks % (Config.ecoMode ? 4 : 2) != 0) return;
         double s = Config.hatSize;
         double x = p.getX();
         double z = p.getZ();
@@ -356,7 +375,7 @@ public final class Effects {
         double y = p.getY();
         double z = p.getZ();
         double h = p.getHeight();
-        int n = Config.fxAmount;
+        int n = Config.ecoMode ? Math.max(1, Config.fxAmount / 2) : Config.fxAmount;
 
         switch (Config.fx) {
             case HEARTS -> {

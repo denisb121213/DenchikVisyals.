@@ -14,7 +14,7 @@ import java.util.Map;
 /** Меню DenchikVisuals (Right Shift). Нарисовано вручную, с анимациями. */
 public class VisualsScreen extends Screen {
 
-    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Игрок", "Камера", "Тема"};
+    private static final String[] TABS = {"Мир", "Шляпы", "Частицы", "HUD", "Бой", "Игрок", "Камера", "FPS", "Тема"};
     private static final int ROW = 20;
 
     private int tab = 0;
@@ -82,8 +82,12 @@ public class VisualsScreen extends Screen {
         return (r << 16) | (g << 8) | b;
     }
 
+    private static boolean animOn() {
+        return Config.animations && !Config.ecoMode;
+    }
+
     private float anim(String id, float target, float speed) {
-        if (!Config.animations) return target;
+        if (!animOn()) return target;
         Float v = anims.get(id);
         if (v == null) v = target;
         v += (target - v) * Math.min(1f, dt * speed);
@@ -231,6 +235,20 @@ public class VisualsScreen extends Screen {
         return result;
     }
 
+    private boolean button(String id, String label, String sub) {
+        int y = (int) rowY;
+        int x1 = cx1 + 2;
+        int x2 = cx2 - 2;
+        boolean hov = hover(x1, y, x2, y + ROW - 2);
+        float h = anim("b:" + id, hov ? 1f : 0f, 14f);
+        rrect(x1, y, x2, y + ROW - 2, mix(mix(0x1E1E2C, 0x2A2A3E, h), accent, h * 0.35f), fade);
+        fill(x1, y + 3, x1 + 2, y + ROW - 5, accent, fade);
+        text(label, x1 + 8, y + 5, 0xFFFFFF, fade);
+        text(sub, x2 - 7 - tr.getWidth(sub), y + 5, 0xA8A8C0, fade);
+        rowY += ROW;
+        return clicked && hov;
+    }
+
     private void colorBar(int rgb) {
         int y = (int) rowY;
         rrect(cx1 + 2, y, cx2 - 2, y + 8, rgb, fade);
@@ -370,14 +388,48 @@ public class VisualsScreen extends Screen {
 
         section("ИНВЕНТАРЬ");
         Config.quickStack = toggle("qs", "Быстро сложить в сундук (V)", Config.quickStack);
-        note("Открой сундук и нажми V: предметы,");
-        note("которые там уже есть, переложатся.");
+        Config.chestButtons = toggle("cb", "Кнопки над окном сундука", Config.chestButtons);
+        Config.quickDelay = Math.round(slider("qd", "Пауза между кликами (тики)", Config.quickDelay, 1, 6, 0));
+        note("Клавиша V или кнопки над сундуком:");
+        note("Сложить - то, что там уже есть.");
+        note("Сложить всё - всё, кроме хотбара.");
+        note("Забрать всё - достать всё из сундука.");
 
         section("СТРЕЛКИ К ИГРОКАМ");
         Config.playerArrows = toggle("pa2", "Показывать стрелки", Config.playerArrows);
         Config.arrowRange = Math.round(slider("ar2", "Дальность (блоков)", Config.arrowRange, 20, 300, 0));
         note("Одиночная игра и LAN: все игроки.");
         note("На серверах: только твоя команда.");
+    }
+
+    private String perfMsg = "";
+
+    private void buildPerf() {
+        section("ЭКО-РЕЖИМ МОДА");
+        Config.ecoMode = toggle("eco", "Эко-режим (меньше частиц, без анимаций)", Config.ecoMode);
+        note("Шляпы и частицы создаются реже,");
+        note("меню работает без анимаций.");
+
+        section("НАСТРОЙКИ ИГРЫ ОДНОЙ КНОПКОЙ");
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (button("pf0", "Слабый ПК", "дальность 6, без облаков")) {
+            Perf.apply(mc, 0);
+            perfMsg = "Применено: Слабый ПК";
+        }
+        if (button("pf1", "Средний ПК", "дальность 10")) {
+            Perf.apply(mc, 1);
+            perfMsg = "Применено: Средний ПК";
+        }
+        if (button("pf2", "Мощный ПК (красиво)", "всё включено")) {
+            Perf.apply(mc, 2);
+            perfMsg = "Применено: Мощный ПК";
+        }
+        if (!perfMsg.isEmpty()) {
+            note(perfMsg);
+        }
+        rowY += 2;
+        note("Ещё сильнее поднимает FPS мод Sodium");
+        note("(скачай на modrinth.com).");
     }
 
     private void buildCamera() {
@@ -418,7 +470,7 @@ public class VisualsScreen extends Screen {
         prevDown = down;
         if (released) dragging = null;
 
-        if (Config.animations) {
+        if (animOn()) {
             open = Math.min(1f, open + dt * 4.5f);
         } else {
             open = 1f;
@@ -449,16 +501,16 @@ public class VisualsScreen extends Screen {
         int tx1 = px + 6;
         int tx2 = px + 88;
         int ty = py + 36;
-        tabPos = Config.animations ? tabPos + (tab - tabPos) * Math.min(1f, dt * 14f) : tab;
-        int hy = ty + (int) (tabPos * 24f);
-        rrect(tx1, hy, tx2, hy + 22, accent, 0.28f * e);
-        fill(tx1, hy + 4, tx1 + 2, hy + 18, accent, e);
+        tabPos = animOn() ? tabPos + (tab - tabPos) * Math.min(1f, dt * 14f) : tab;
+        int hy = ty + (int) (tabPos * 21f);
+        rrect(tx1, hy, tx2, hy + 19, accent, 0.28f * e);
+        fill(tx1, hy + 3, tx1 + 2, hy + 16, accent, e);
         for (int i = 0; i < TABS.length; i++) {
-            int y = ty + i * 24;
-            boolean hov = mx >= tx1 && mx < tx2 && my >= y && my < y + 22;
+            int y = ty + i * 21;
+            boolean hov = mx >= tx1 && mx < tx2 && my >= y && my < y + 19;
             float h = anim("tab" + i, hov ? 1f : 0f, 14f);
             int col = i == tab ? 0xFFFFFF : mix(0x9A9AB2, 0xFFFFFF, h);
-            text(TABS[i], tx1 + 10 + (int) (h * 2f), y + 7, col, fade);
+            text(TABS[i], tx1 + 10 + (int) (h * 2f), y + 6, col, fade);
             if (clicked && hov && i != tab) {
                 tab = i;
                 scroll = 0f;
@@ -474,7 +526,7 @@ public class VisualsScreen extends Screen {
         rrect(cx1 - 3, cy1 - 3, cx2 + 3, cy2 + 3, 0x14141E, panelA);
         inContent = mx >= cx1 && mx <= cx2 && my >= cy1 && my <= cy2;
 
-        scroll = Config.animations ? scroll + (scrollTarget - scroll) * Math.min(1f, dt * 14f) : scrollTarget;
+        scroll = animOn() ? scroll + (scrollTarget - scroll) * Math.min(1f, dt * 14f) : scrollTarget;
         float top = cy1 - scroll + 2f;
         rowY = top;
 
@@ -487,6 +539,7 @@ public class VisualsScreen extends Screen {
             case 4 -> buildCombat();
             case 5 -> buildPlayer();
             case 6 -> buildCamera();
+            case 7 -> buildPerf();
             default -> buildTheme();
         }
         ctx.disableScissor();
@@ -504,7 +557,7 @@ public class VisualsScreen extends Screen {
 
         // подвал
         text("RShift / Esc - закрыть     C - зум", px + 10, py + ph - 13, 0x7C7C94, fade);
-        String ver = "v1.2.0";
+        String ver = "v1.3.0";
         text(ver, px + pw - 10 - tr.getWidth(ver), py + ph - 13, 0x7C7C94, fade);
 
         // сохранение, когда мышь отпущена

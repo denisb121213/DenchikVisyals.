@@ -95,6 +95,8 @@ public final class Config {
     // ---------- Игрок ----------
     public static boolean nightVision = false;
     public static boolean quickStack = true;
+    public static boolean chestButtons = true;
+    public static int quickDelay = 2;
     public static boolean playerArrows = false;
     public static int arrowRange = 100;
 
@@ -107,6 +109,9 @@ public final class Config {
     public static boolean accentRainbow = false;
     public static boolean animations = true;
     public static float panelAlpha = 0.92f;
+
+    // ---------- Производительность ----------
+    public static boolean ecoMode = false;
 
     private Config() {}
 
@@ -225,5 +230,6 @@ public final class Config {
         crosshairSize = clampI(crosshairSize, 2, 12);
         crosshairHue = clampF(crosshairHue, 0f, 1f);
         arrowRange = clampI(arrowRange, 20, 300);
+        quickDelay = clampI(quickDelay, 1, 6);
     }
 }

@@ -6,7 +6,8 @@
   "client": [
     "EnvironmentAttributeInterpolatorMixin",
     "MinecraftClientMixin",
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "HandledScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 0
