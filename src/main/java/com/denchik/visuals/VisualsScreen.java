@@ -557,7 +557,7 @@ public class VisualsScreen extends Screen {
 
         // подвал
         text("RShift / Esc - закрыть     C - зум", px + 10, py + ph - 13, 0x7C7C94, fade);
-        String ver = "v1.3.0";
+        String ver = "v1.3.1";
         text(ver, px + pw - 10 - tr.getWidth(ver), py + ph - 13, 0x7C7C94, fade);
 
         // сохранение, когда мышь отпущена
